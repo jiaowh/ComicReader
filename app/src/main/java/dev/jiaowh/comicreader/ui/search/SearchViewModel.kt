@@ -3,7 +3,9 @@ package dev.jiaowh.comicreader.ui.search
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.jiaowh.comicreader.data.ComicRepository
+import androidx.navigation.toRoute
 import dev.jiaowh.comicreader.data.remote.ComicSummary
+import dev.jiaowh.comicreader.ui.SearchRoute
 import dev.jiaowh.comicreader.ui.common.appViewModelFactory
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -27,11 +29,47 @@ data class SearchUiState(
 
 class SearchViewModel(
     private val repository: ComicRepository,
+    private val route: SearchRoute,
     siteVerified: SharedFlow<Unit>,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(SearchUiState())
+    private val _state = MutableStateFlow(SearchUiState(activeQuery = route.query.trim()))
     val state = _state.asStateFlow()
+
+    /** Set when choosing a comic for a reading-order step. */
+    val linkLabel: String? = route.linkLabel.takeIf { route.linkStepId != null }
+
+    private val _linking = MutableStateFlow(false)
+    val linking = _linking.asStateFlow()
+
+    private val _linked = MutableStateFlow(false)
+    val linked = _linked.asStateFlow()
+
+    private val _linkError = MutableStateFlow<Throwable?>(null)
+    val linkError = _linkError.asStateFlow()
+
+    fun link(url: String) {
+        val stepId = route.linkStepId ?: return
+        if (_linking.value) return
+        viewModelScope.launch {
+            _linking.value = true
+            _linkError.value = null
+            try {
+                repository.linkStep(stepId, url)
+                _linked.value = true
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _linkError.value = e
+            } finally {
+                _linking.value = false
+            }
+        }
+    }
+
+    fun linkErrorShown() {
+        _linkError.value = null
+    }
 
     val libraryUrls = repository.libraryUrls.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
@@ -77,8 +115,8 @@ class SearchViewModel(
     }
 
     companion object {
-        val Factory = appViewModelFactory { container, _ ->
-            SearchViewModel(container.repository, container.siteVerified)
+        val Factory = appViewModelFactory { container, handle ->
+            SearchViewModel(container.repository, handle.toRoute<SearchRoute>(), container.siteVerified)
         }
     }
 }

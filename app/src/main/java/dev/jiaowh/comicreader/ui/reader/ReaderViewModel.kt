@@ -12,6 +12,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.io.IOException
@@ -27,6 +28,18 @@ data class ReaderUiState(
     val error: Throwable? = null,
     /** False when reading a comic that isn't in the library, so progress isn't saved. */
     val tracking: Boolean = false,
+    /** Set when this chapter ends a step of its series' reading order. */
+    val orderNext: OrderNext? = null,
+)
+
+/** The next step in the reading order. [url]/[chapterId] are null if that step isn't linked to a comic yet. */
+data class OrderNext(
+    val seriesId: Long,
+    val seriesName: String,
+    val label: String,
+    val url: String?,
+    val chapterId: Int?,
+    val page: Int,
 )
 
 class ReaderViewModel(
@@ -55,6 +68,9 @@ class ReaderViewModel(
 
     fun retry() = open(requestedChapterId, requestedPage)
 
+    /** The URL of the comic being read, to tell same-comic and cross-comic jumps apart. */
+    val comicUrl: String get() = url
+
     fun open(chapterId: Int, page: Int = 0) {
         requestedChapterId = chapterId
         requestedPage = page
@@ -77,6 +93,7 @@ class ReaderViewModel(
                     next = chapters.getOrNull(index + 1),
                     loading = false,
                     tracking = inLibrary,
+                    orderNext = orderNextAfter(chapter),
                 )
             } catch (e: CancellationException) {
                 throw e
@@ -84,6 +101,24 @@ class ReaderViewModel(
                 _state.update { it.copy(loading = false, error = e) }
             }
         }
+    }
+
+    /** If [chapter] is the last one in its reading-order step, the step that follows it. */
+    private suspend fun orderNextAfter(chapter: Chapter): OrderNext? {
+        val seriesId = repository.libraryComic(url)?.seriesId ?: return null
+        val order = repository.readingOrderSnapshot(seriesId) ?: return null
+        val step = order.stepContaining(url, chapter.id) ?: return null
+        if (step.chapters.last().id != chapter.id) return null
+        val next = order.stepAfter(step.step.id) ?: return null
+        val target = next.openTarget.takeIf { next.isLinked }
+        return OrderNext(
+            seriesId = seriesId,
+            seriesName = repository.series.first().firstOrNull { it.id == seriesId }?.name.orEmpty(),
+            label = next.step.label,
+            url = next.comic?.url.takeIf { target != null },
+            chapterId = target?.first,
+            page = target?.second ?: 0,
+        )
     }
 
     private suspend fun loadComic() {

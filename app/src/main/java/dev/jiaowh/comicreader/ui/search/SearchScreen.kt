@@ -24,7 +24,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -58,6 +60,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
 import dev.jiaowh.comicreader.data.remote.ComicSummary
 import dev.jiaowh.comicreader.ui.common.ErrorView
+import dev.jiaowh.comicreader.ui.common.userMessage
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,6 +78,28 @@ fun SearchScreen(
     val gridState = rememberLazyGridState()
 
     LaunchedEffect(Unit) { if (state.activeQuery.isEmpty()) focusRequester.requestFocus() }
+
+    val linkLabel = viewModel.linkLabel
+    val linking by viewModel.linking.collectAsStateWithLifecycle()
+    val linked by viewModel.linked.collectAsStateWithLifecycle()
+    val linkError by viewModel.linkError.collectAsStateWithLifecycle()
+    LaunchedEffect(linked) { if (linked) onBack() }
+    if (linking) {
+        AlertDialog(
+            onDismissRequest = {},
+            confirmButton = {},
+            title = { Text("Linking…") },
+            text = { CircularProgressIndicator() },
+        )
+    }
+    linkError?.let { failure ->
+        AlertDialog(
+            onDismissRequest = viewModel::linkErrorShown,
+            confirmButton = { TextButton(onClick = viewModel::linkErrorShown) { Text("OK") } },
+            title = { Text("Couldn't link that comic") },
+            text = { Text(failure.userMessage()) },
+        )
+    }
 
     // Load the next page when the user nears the end of the list.
     val nearEnd by remember {
@@ -132,6 +157,15 @@ fun SearchScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
             modifier = Modifier.padding(padding).fillMaxSize(),
         ) {
+            if (linkLabel != null) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Text(
+                        "Tap the comic that contains \"$linkLabel\"",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Text(
                     if (state.activeQuery.isBlank()) "Latest releases" else "Results for \"${state.activeQuery}\"",
@@ -140,7 +174,11 @@ fun SearchScreen(
                 )
             }
             items(state.results, key = { it.url }) { comic ->
-                SearchResultCard(comic, inLibrary = comic.url in libraryUrls, onClick = { onOpenComic(comic.url) })
+                SearchResultCard(
+                    comic,
+                    inLibrary = comic.url in libraryUrls,
+                    onClick = { if (linkLabel != null) viewModel.link(comic.url) else onOpenComic(comic.url) },
+                )
             }
             item(span = { GridItemSpan(maxLineSpan) }) {
                 val error = state.error

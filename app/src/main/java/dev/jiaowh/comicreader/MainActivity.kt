@@ -19,6 +19,8 @@ import androidx.navigation.compose.rememberNavController
 import dev.jiaowh.comicreader.ui.ComicRoute
 import dev.jiaowh.comicreader.ui.LibraryRoute
 import dev.jiaowh.comicreader.ui.ReaderRoute
+import dev.jiaowh.comicreader.ui.ReadingOrderRoute
+import dev.jiaowh.comicreader.ui.order.ReadingOrderScreen
 import dev.jiaowh.comicreader.ui.SearchRoute
 import dev.jiaowh.comicreader.ui.VerifyRoute
 import dev.jiaowh.comicreader.ui.comic.ComicScreen
@@ -51,7 +53,17 @@ private fun AppNavigation() {
             LibraryScreen(
                 onOpenComic = { nav.navigate(ComicRoute(it)) },
                 onResume = { url, chapterId, page -> nav.navigate(ReaderRoute(url, chapterId, page)) },
-                onSearch = { nav.navigate(SearchRoute) },
+                onSearch = { nav.navigate(SearchRoute()) },
+                onVerify = openVerify,
+                onOpenReadingOrder = { nav.navigate(ReadingOrderRoute(it)) },
+            )
+        }
+        composable<ReadingOrderRoute> {
+            ReadingOrderScreen(
+                onBack = { nav.popBackStack() },
+                onRead = { url, chapterId, page -> nav.navigate(ReaderRoute(url, chapterId, page)) },
+                onLink = { stepId, label, query -> nav.navigate(SearchRoute(query, stepId, label)) },
+                onOpenComic = { nav.navigate(ComicRoute(it)) },
                 onVerify = openVerify,
             )
         }
@@ -70,7 +82,17 @@ private fun AppNavigation() {
             )
         }
         composable<ReaderRoute> {
-            ReaderScreen(onBack = { nav.popBackStack() }, onVerify = openVerify)
+            ReaderScreen(
+                onBack = { nav.popBackStack() },
+                onVerify = openVerify,
+                // Swap this reader for one on the next comic, so Back still returns to where reading started.
+                onOpenOtherComic = { url, chapterId, page ->
+                    nav.navigate(ReaderRoute(url, chapterId, page)) {
+                        popUpTo<ReaderRoute> { inclusive = true }
+                    }
+                },
+                onOpenReadingOrder = { nav.navigate(ReadingOrderRoute(it)) },
+            )
         }
         composable<VerifyRoute> {
             VerifyScreen(onDone = { nav.popBackStack() })

@@ -78,6 +78,9 @@ private val OverlayColor = Color.Black.copy(alpha = 0.8f)
 fun ReaderScreen(
     onBack: () -> Unit,
     onVerify: () -> Unit,
+    /** Continues the reading order in a different comic. */
+    onOpenOtherComic: (url: String, chapterId: Int, page: Int) -> Unit,
+    onOpenReadingOrder: (seriesId: Long) -> Unit,
     viewModel: ReaderViewModel = viewModel(factory = ReaderViewModel.Factory),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -112,6 +115,19 @@ fun ReaderScreen(
                     onToggleOverlay = { overlayVisible = !overlayVisible },
                     onPageChanged = viewModel::onPageChanged,
                     onOpenChapter = { viewModel.open(it.id) },
+                    onOpenOrderNext = onOpenOrderNext@{ next ->
+                        val url = next.url
+                        val chapterId = next.chapterId
+                        if (url == null || chapterId == null) {
+                            onOpenReadingOrder(next.seriesId) // not linked yet; let the user find it
+                            return@onOpenOrderNext
+                        }
+                        if (url == viewModel.comicUrl) {
+                            viewModel.open(chapterId, next.page)
+                        } else {
+                            onOpenOtherComic(url, chapterId, next.page)
+                        }
+                    },
                     onBack = onBack,
                 )
             }
@@ -127,6 +143,7 @@ private fun BoxScope.ChapterPager(
     onToggleOverlay: () -> Unit,
     onPageChanged: (Int) -> Unit,
     onOpenChapter: (Chapter) -> Unit,
+    onOpenOrderNext: (OrderNext) -> Unit,
     onBack: () -> Unit,
 ) {
     val pages = state.pages
@@ -159,7 +176,7 @@ private fun BoxScope.ChapterPager(
                 },
             )
         } else {
-            EndOfChapter(chapter, state.next, state.tracking, onOpenChapter, onBack)
+            EndOfChapter(chapter, state.next, state.orderNext, state.tracking, onOpenChapter, onOpenOrderNext, onBack)
         }
     }
 
@@ -245,8 +262,10 @@ private fun BottomBar(state: ReaderUiState, pagerState: PagerState, onOpenChapte
 private fun EndOfChapter(
     chapter: Chapter,
     next: Chapter?,
+    orderNext: OrderNext?,
     tracking: Boolean,
     onOpenChapter: (Chapter) -> Unit,
+    onOpenOrderNext: (OrderNext) -> Unit,
     onBack: () -> Unit,
 ) {
     Column(
@@ -255,7 +274,25 @@ private fun EndOfChapter(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text("Finished ${chapter.title}", color = Color.White, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
-        if (next != null) {
+        if (orderNext != null) {
+            // The reading order wins over the comic's own next chapter.
+            Text(
+                "Up next in ${orderNext.seriesName}",
+                color = Color.White.copy(alpha = 0.7f),
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Button(onClick = { onOpenOrderNext(orderNext) }) {
+                Text(
+                    if (orderNext.url != null) orderNext.label else "${orderNext.label} (find it)",
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                )
+            }
+            if (next != null) {
+                TextButton(onClick = { onOpenChapter(next) }) { Text("Or continue: ${next.title}", maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            }
+        } else if (next != null) {
             Button(onClick = { onOpenChapter(next) }) { Text("Next: ${next.title}", maxLines = 1, overflow = TextOverflow.Ellipsis) }
         } else {
             Text("You're all caught up!", color = Color.White.copy(alpha = 0.7f))

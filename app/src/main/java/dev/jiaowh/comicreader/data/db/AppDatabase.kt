@@ -7,11 +7,13 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 
 @Database(
-    entities = [ComicEntity::class, ChapterEntity::class, SeriesEntity::class],
-    version = 2,
+    entities = [ComicEntity::class, ChapterEntity::class, SeriesEntity::class, ReadingStepEntity::class],
+    version = 3,
     autoMigrations = [
         // v2: series table + comics.seriesId
         AutoMigration(from = 1, to = 2),
+        // v3: reading_steps table
+        AutoMigration(from = 2, to = 3),
     ],
 )
 abstract class AppDatabase : RoomDatabase() {

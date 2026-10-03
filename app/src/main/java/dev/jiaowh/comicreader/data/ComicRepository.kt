@@ -3,6 +3,7 @@ package dev.jiaowh.comicreader.data
 import androidx.room.withTransaction
 import dev.jiaowh.comicreader.data.db.AppDatabase
 import dev.jiaowh.comicreader.data.db.ComicEntity
+import dev.jiaowh.comicreader.data.db.ReadingStepEntity
 import dev.jiaowh.comicreader.data.db.SeriesEntity
 import dev.jiaowh.comicreader.data.db.toChapter
 import dev.jiaowh.comicreader.data.db.toEntities
@@ -10,8 +11,14 @@ import dev.jiaowh.comicreader.data.net.SiteProtectionException
 import dev.jiaowh.comicreader.data.remote.BatcaveApi
 import dev.jiaowh.comicreader.data.remote.Chapter
 import dev.jiaowh.comicreader.data.remote.ComicDetails
+import dev.jiaowh.comicreader.data.remote.ComicSummary
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.util.concurrent.ConcurrentHashMap
 
@@ -34,6 +41,7 @@ class ComicRepository(
 ) {
     private val dao = db.comicDao()
     private val detailsCache = ConcurrentHashMap<String, ComicDetails>()
+    private val resolveMutex = Mutex()
 
     val library = dao.libraryItems()
     val libraryUrls = dao.libraryUrls().map { it.toSet() }
@@ -85,10 +93,10 @@ class ComicRepository(
     }
 
     /** Creates a series, or returns the existing one with the same name. */
-    suspend fun createSeries(name: String): Long {
+    suspend fun createSeries(name: String, collapsed: Boolean = false): Long {
         val trimmed = name.trim()
         dao.seriesByName(trimmed)?.let { return it.id }
-        return dao.insertSeries(SeriesEntity(name = trimmed))
+        return dao.insertSeries(SeriesEntity(name = trimmed, collapsed = collapsed))
     }
 
     suspend fun renameSeries(id: Long, name: String) = dao.renameSeries(id, name.trim())
@@ -142,6 +150,164 @@ class ComicRepository(
         return UpdateResult(updated, failed, blocked)
     }
 
+    // --- Reading orders ---
+
+    /** Every series' reading order, keyed by series id. Series without steps are absent. */
+    val readingOrders: Flow<Map<Long, ReadingOrderState>> = combine(
+        dao.allStepsFlow(),
+        dao.stepComicsFlow(),
+        dao.stepChaptersFlow(),
+    ) { steps, comics, chapters ->
+        val comicsByUrl = comics.associateBy { it.url }
+        val chaptersByComic = chapters.groupBy { it.comicUrl }.mapValues { (_, list) -> list.sortedBy { it.sortIndex } }
+        steps.groupBy { it.seriesId }.mapValues { (seriesId, list) ->
+            buildReadingOrder(seriesId, list, comicsByUrl, chaptersByComic)
+        }
+    }
+
+    fun readingOrder(seriesId: Long): Flow<ReadingOrderState?> = readingOrders.map { it[seriesId] }
+
+    suspend fun readingOrderSnapshot(seriesId: Long): ReadingOrderState? = readingOrders.first()[seriesId]
+
+    suspend fun insertStepsIfEmpty(seriesId: Long, seeds: List<StepSeed>) {
+        if (dao.steps(seriesId).isNotEmpty()) return
+        dao.insertSteps(seeds.mapIndexed { index, seed -> seed.toEntity(seriesId, index) })
+    }
+
+    suspend fun seriesIdByName(name: String): Long? = dao.seriesByName(name)?.id
+
+    /**
+     * Brings a built-in order's steps in line with [seeds]: adds new steps, updates moved or
+     * relabelled ones, and drops removed ones. Steps are matched on what they point at (title, year,
+     * issues), so links and the progress they carry survive.
+     */
+    suspend fun syncSteps(seriesId: Long, seeds: List<StepSeed>) = db.withTransaction {
+        if (dao.seriesById(seriesId) == null) return@withTransaction
+        val plan = planStepSync(seriesId, dao.steps(seriesId), seeds)
+        plan.updates.forEach { dao.updateStep(it) }
+        if (plan.inserts.isNotEmpty()) dao.insertSteps(plan.inserts)
+        if (plan.deletes.isNotEmpty()) dao.deleteSteps(plan.deletes)
+    }
+
+    /**
+     * Searches BatCave for every unlinked step and links the best match, adding it to the library
+     * under the series. Returns true if every step was attempted without errors.
+     */
+    suspend fun resolveReadingOrder(
+        seriesId: Long,
+        onProgress: (done: Int, total: Int) -> Unit = { _, _ -> },
+    ): Boolean = resolveMutex.withLock {
+        // Under the lock, so a second screen on the same order sees the first one's links.
+        val pending = dao.steps(seriesId).filter { it.comicUrl == null && !it.unresolved }
+        // Several steps point at the same comic (Metal #1, #2, ...); only look each one up once.
+        val found = HashMap<String, String?>()
+        var allOk = true
+        pending.forEachIndexed { index, step ->
+            onProgress(index, pending.size)
+            try {
+                val key = "${TitleMatch.normalize(step.title)}|${step.year}"
+                val url = if (key in found) found[key] else findComic(step).also { found[key] = it }
+                if (url == null) {
+                    dao.setStepComic(step.id, null, unresolved = true)
+                } else {
+                    ensureInLibrary(url, seriesId)
+                    dao.setStepComic(step.id, url, unresolved = false)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: SiteProtectionException) {
+                throw e
+            } catch (e: Exception) {
+                allOk = false // leave it pending so the next run retries
+            }
+        }
+        onProgress(pending.size, pending.size)
+        allOk
+    }
+
+    /** Retries matching for steps that were not found or whose comic was removed. */
+    suspend fun rematchReadingOrder(seriesId: Long, onProgress: (Int, Int) -> Unit): Boolean {
+        dao.resetUnmatchedSteps(seriesId)
+        return resolveReadingOrder(seriesId, onProgress)
+    }
+
+    /** Manually links a step to a comic the user picked. */
+    suspend fun linkStep(stepId: Long, url: String) {
+        val step = dao.step(stepId) ?: return
+        ensureInLibrary(url, step.seriesId)
+        dao.setStepComic(stepId, url, unresolved = false)
+    }
+
+    suspend fun markStepRead(state: StepState) {
+        val comic = state.comic ?: return
+        val last = state.chapters.lastOrNull() ?: return
+        if (state.status == StepStatus.Done) return // don't move progress backwards
+        saveProgress(comic.url, last.id, 0, 0, finished = true)
+    }
+
+    suspend fun markStepUnread(state: StepState) {
+        val comic = state.comic ?: return
+        val first = state.chapters.firstOrNull() ?: return
+        val previous = dao.chapters(comic.url).lastOrNull { it.sortIndex < first.sortIndex }
+        saveProgress(comic.url, previous?.id, 0, 0, finished = previous != null)
+    }
+
+    private suspend fun findComic(step: ReadingStepEntity): String? {
+        val candidates = searchCandidates(step)
+        if (candidates.size == 1) return candidates.single().url
+
+        var best: String? = null
+        var bestScore = -1
+        for (candidate in candidates.take(MAX_CANDIDATES)) {
+            delay(REQUEST_SPACING_MS)
+            val chapters = details(candidate.url).chapters
+            if (selectIssues(chapters, step.firstIssue, step.lastIssue) { it.number }.isEmpty()) continue
+            var score = 0
+            if (step.year != null && TitleMatch.year(candidate.title) == step.year) score += 4
+            if (step.firstIssue == null && chapters.size == 1) score += 2 // looks like a one-shot
+            if (step.lastIssue != null && chapters.any { it.number == step.lastIssue }) score += 2
+            if (score > bestScore) {
+                best = candidate.url
+                bestScore = score
+            }
+        }
+        return best
+    }
+
+    /**
+     * Search results whose title matches the step, trying each search phrasing until one hits.
+     * Exact title matches win; otherwise titles that start with it (e.g. "... The Omega Act Special").
+     */
+    private suspend fun searchCandidates(step: ReadingStepEntity): List<ComicSummary> {
+        val wanted = TitleMatch.normalize(step.title)
+        for ((attempt, query) in TitleMatch.queries(step.title).withIndex()) {
+            if (attempt > 0) delay(REQUEST_SPACING_MS)
+            val sameVolume = search(query, 1).comics
+                // A listing with a different explicit year is a different volume.
+                .filter { step.year == null || TitleMatch.year(it.title).let { year -> year == null || year == step.year } }
+            val exact = sameVolume.filter { TitleMatch.normalize(it.title) == wanted }
+            val matches = exact.ifEmpty {
+                sameVolume.filter {
+                    TitleMatch.normalize(it.title).startsWith("$wanted ") &&
+                        // A generic title like "Superman" prefixes too much; insist on the year then.
+                        (step.year == null || TitleMatch.year(it.title) == step.year)
+                }
+            }
+            if (matches.isNotEmpty()) {
+                return matches.sortedByDescending { step.year != null && TitleMatch.year(it.title) == step.year }
+            }
+        }
+        return emptyList()
+    }
+
+    private suspend fun ensureInLibrary(url: String, seriesId: Long) {
+        val existing = dao.comic(url)
+        when {
+            existing == null -> addToLibrary(details(url), seriesId)
+            existing.seriesId == null -> dao.setComicSeries(url, seriesId)
+        }
+    }
+
     suspend fun markSeen(url: String) = dao.clearNewChapters(url)
 
     suspend fun saveProgress(url: String, chapterId: Int?, page: Int, pageCount: Int, finished: Boolean) =
@@ -149,5 +315,6 @@ class ComicRepository(
 
     private companion object {
         const val REQUEST_SPACING_MS = 750L
+        const val MAX_CANDIDATES = 4
     }
 }

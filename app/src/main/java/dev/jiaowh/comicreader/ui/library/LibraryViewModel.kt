@@ -3,6 +3,7 @@ package dev.jiaowh.comicreader.ui.library
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.jiaowh.comicreader.data.ComicRepository
+import dev.jiaowh.comicreader.data.ReadingOrderState
 import dev.jiaowh.comicreader.data.SeedStatus
 import dev.jiaowh.comicreader.data.SeriesChoice
 import dev.jiaowh.comicreader.data.StarterSeriesSeeder
@@ -26,7 +27,12 @@ sealed interface LibraryMessage {
     data object NeedsVerification : LibraryMessage
 }
 
-data class SeriesGroup(val series: SeriesEntity, val items: List<LibraryItem>) {
+data class SeriesGroup(
+    val series: SeriesEntity,
+    val items: List<LibraryItem>,
+    /** Present when the series has a reading order. */
+    val order: ReadingOrderState? = null,
+) {
     val newChapters get() = items.sumOf { it.comic.newChapterCount }
 }
 
@@ -45,11 +51,25 @@ class LibraryViewModel(
 ) : ViewModel() {
 
     /** Null while the first load from the database is pending. */
-    val content: StateFlow<LibraryContent?> = combine(repository.library, repository.series) { items, series ->
+    val content: StateFlow<LibraryContent?> = combine(
+        repository.library,
+        repository.series,
+        repository.readingOrders,
+    ) { items, series, orders ->
         val bySeries = items.groupBy { it.comic.seriesId }
         val knownIds = series.mapTo(HashSet()) { it.id }
         LibraryContent(
-            groups = series.map { SeriesGroup(it, bySeries[it.id].orEmpty()) },
+            groups = series.map { entry ->
+                val order = orders[entry.id]
+                var groupItems = bySeries[entry.id].orEmpty()
+                if (order != null) {
+                    // Show the comics in the order they're read.
+                    val firstStep = HashMap<String, Int>()
+                    order.steps.forEachIndexed { index, step -> step.step.comicUrl?.let { firstStep.putIfAbsent(it, index) } }
+                    groupItems = groupItems.sortedBy { firstStep[it.comic.url] ?: Int.MAX_VALUE }
+                }
+                SeriesGroup(entry, groupItems, order)
+            },
             // A dangling seriesId (shouldn't happen) falls back to ungrouped rather than vanishing.
             ungrouped = items.filter { it.comic.seriesId == null || it.comic.seriesId !in knownIds },
         )

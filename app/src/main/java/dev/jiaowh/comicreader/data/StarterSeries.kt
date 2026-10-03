@@ -36,7 +36,10 @@ sealed interface SeedStatus {
     data object BlockedByProtection : SeedStatus
 }
 
-/** Populates [STARTER_SERIES] once. Retries on later launches until a run finishes without errors. */
+/**
+ * Populates [STARTER_SERIES] and [STARTER_READING_ORDERS] once each.
+ * Retries on later launches until a run finishes without errors.
+ */
 class StarterSeriesSeeder(context: Context, private val repository: ComicRepository) {
     private val prefs = context.getSharedPreferences("starter_series", Context.MODE_PRIVATE)
     private val mutex = Mutex()
@@ -51,6 +54,24 @@ class StarterSeriesSeeder(context: Context, private val repository: ComicReposit
                 return@withLock
             }
             if (complete) prefs.edit().putBoolean(starter.key, true).apply()
+        }
+        // Orders are only laid out here; their books are matched on BatCave the first time each
+        // order is opened, so unused orders cost no requests and don't fill the library.
+        for (order in STARTER_READING_ORDERS) {
+            val seriesKey = "${order.key}_series"
+            if (!prefs.getBoolean(order.key, false)) {
+                // Collapsed, so dozens of not-yet-started orders stay compact in the library.
+                val seriesId = repository.createSeries(order.name, collapsed = true)
+                repository.insertStepsIfEmpty(seriesId, order.steps)
+                prefs.edit().putBoolean(order.key, true).putLong(seriesKey, seriesId).apply()
+            } else {
+                // Keep built-in orders current with the app (added sequels, corrected titles).
+                // Orders seeded before the id was stored are found by name; deleted ones are skipped.
+                val seriesId = prefs.getLong(seriesKey, -1L).takeIf { it >= 0 }
+                    ?: repository.seriesIdByName(order.name)
+                    ?: continue
+                repository.syncSteps(seriesId, order.steps)
+            }
         }
         onStatus(SeedStatus.Idle)
     }

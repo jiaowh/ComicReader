@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -33,6 +34,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -90,6 +92,7 @@ fun LibraryScreen(
     onResume: (url: String, chapterId: Int, page: Int) -> Unit,
     onSearch: () -> Unit,
     onVerify: () -> Unit,
+    onOpenReadingOrder: (seriesId: Long) -> Unit,
     viewModel: LibraryViewModel = viewModel(factory = LibraryViewModel.Factory),
 ) {
     val content by viewModel.content.collectAsStateWithLifecycle()
@@ -176,6 +179,17 @@ fun LibraryScreen(
                         item(key = "series-${group.series.id}", span = { GridItemSpan(maxLineSpan) }) {
                             SeriesHeader(
                                 group = group,
+                                onOpenOrder = { onOpenReadingOrder(group.series.id) },
+                                onNextUp = {
+                                    val next = group.order?.nextUp
+                                    val url = next?.comic?.url
+                                    val target = next?.openTarget
+                                    if (url != null && target != null) {
+                                        onResume(url, target.first, target.second)
+                                    } else {
+                                        onOpenReadingOrder(group.series.id)
+                                    }
+                                },
                                 onToggle = { viewModel.toggleCollapsed(group.series) },
                                 onRename = { dialog = LibraryDialog.RenameSeries(group.series) },
                                 onDelete = { dialog = LibraryDialog.DeleteSeries(group) },
@@ -185,7 +199,11 @@ fun LibraryScreen(
                             if (group.items.isEmpty()) {
                                 item(key = "series-empty-${group.series.id}", span = { GridItemSpan(maxLineSpan) }) {
                                     Text(
-                                        "No comics yet. Add one from its page, or long-press a comic to move it here.",
+                                        if (group.order != null) {
+                                            "Not started. Tap ≡ to see the reading order, or ▶ to begin."
+                                        } else {
+                                            "No comics yet. Add one from its page, or long-press a comic to move it here."
+                                        },
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
@@ -274,6 +292,8 @@ private fun LibraryItem.resumeTarget(): Pair<Int, Int>? {
 @Composable
 private fun SeriesHeader(
     group: SeriesGroup,
+    onOpenOrder: () -> Unit,
+    onNextUp: () -> Unit,
     onToggle: () -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit,
@@ -301,13 +321,31 @@ private fun SeriesHeader(
             )
             Column(Modifier.weight(1f).padding(start = 8.dp)) {
                 Text(group.series.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                val order = group.order
+                val subtitle = when {
+                    order == null -> pluralize(group.items.size, "comic")
+                    order.nextUp == null -> "Reading order complete ✓"
+                    else -> "${order.doneCount}/${order.required.size} read · Next: ${order.nextUp?.step?.label}"
+                }
                 Text(
-                    pluralize(group.items.size, "comic"),
+                    subtitle,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
             if (group.newChapters > 0) Badge("NEW +${group.newChapters}", highlight = true, shape = RoundedCornerShape(8.dp))
+            if (group.order != null) {
+                IconButton(onClick = onOpenOrder) {
+                    Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Reading order")
+                }
+                if (group.order.nextUp != null) {
+                    FilledTonalIconButton(onClick = onNextUp) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = "Read next in order")
+                    }
+                }
+            }
             Box {
                 IconButton(onClick = { menuOpen = true }) {
                     Icon(Icons.Default.MoreVert, contentDescription = "Series options")

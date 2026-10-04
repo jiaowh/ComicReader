@@ -601,3 +601,163 @@ val AGE_OF_APOCALYPSE = StarterReadingOrder(
         issues("Sequels (optional)", "Age of Apocalypse", 2012, 1, 14, optional = true),
     ),
 )
+
+// --- Villains in charge ---
+
+private const val TB_BUSIEK = "Thunderbolts (Kurt Busiek)"
+
+/** A new hero team that is secretly the Masters of Evil; Busiek & Bagley's run, #1–33. */
+val THUNDERBOLTS = StarterReadingOrder(
+    key = "thunderbolts_order_v1",
+    name = "Thunderbolts",
+    steps = listOf(
+        issues(TB_BUSIEK, "Thunderbolts", 1997, 1, note = "Read to the last page"),
+        issues(TB_BUSIEK, "Thunderbolts", 1997, 2, 12),
+        issues(TB_BUSIEK, "Thunderbolts", 1997, 13, 24),
+        issues(TB_BUSIEK, "Thunderbolts", 1997, 25, 33, note = "End of Busiek's run"),
+    ),
+)
+
+private const val DR_AVENGERS = "Dark Avengers"
+private const val DR_SIEGE = "Siege"
+private const val DARK_AVENGERS_2009 = "Dark Avengers"
+private const val SIEGE_2010 = "Siege"
+
+/**
+ * Norman Osborn's Avengers, villains in hero costumes, through Siege. Utopia crossover issues are
+ * optional; Siege interleaves with Dark Avengers #13–16 by release.
+ */
+val DARK_REIGN = StarterReadingOrder(
+    key = "dark_reign_order_v1",
+    name = "Dark Reign: Dark Avengers & Siege",
+    steps = listOf(
+        issues(DR_AVENGERS, DARK_AVENGERS_2009, 2009, 1, 6, note = "Venom as Spider-Man, Daken as Wolverine"),
+        issues(DR_AVENGERS, DARK_AVENGERS_2009, 2009, 7, 8, optional = true, note = "Utopia crossover"),
+        issues(DR_AVENGERS, DARK_AVENGERS_2009, 2009, 9, 12),
+        issues(DR_AVENGERS, "Dark Avengers Annual", 2009, 1, optional = true),
+        oneShot(DR_SIEGE, "Siege: The Cabal", note = "Prologue"),
+        issues(DR_SIEGE, SIEGE_2010, 2010, 1),
+        issues(DR_SIEGE, DARK_AVENGERS_2009, 2009, 13),
+        issues(DR_SIEGE, SIEGE_2010, 2010, 2),
+        issues(DR_SIEGE, DARK_AVENGERS_2009, 2009, 14),
+        issues(DR_SIEGE, SIEGE_2010, 2010, 3),
+        issues(DR_SIEGE, DARK_AVENGERS_2009, 2009, 15),
+        issues(DR_SIEGE, SIEGE_2010, 2010, 4, note = "The fall of the Dark Avengers"),
+        issues(DR_SIEGE, DARK_AVENGERS_2009, 2009, 16),
+    ),
+)
+
+/** What if the black suit had taken Peter over for good (Chip Zdarsky). */
+val SPIDERS_SHADOW = StarterReadingOrder(
+    key = "spiders_shadow_order_v1",
+    name = "Spider-Man: Spider's Shadow",
+    steps = listOf(issues("Spider's Shadow", "Spider-Man: Spider's Shadow", null, 1, 5)),
+)
+
+/** Mark Millar's "what if Batman were the Joker" (Millarworld). */
+val NEMESIS = StarterReadingOrder(
+    key = "nemesis_order_v1",
+    name = "Nemesis",
+    steps = listOf(
+        issues("Nemesis", "Nemesis", 2010, 1, 4, note = "Millar & McNiven"),
+        issues("Sequel (optional)", "Nemesis: Reloaded", null, 1, 5, optional = true),
+    ),
+)
+
+// --- Mashups and variants ---
+
+private const val AM_PRELUDE = "Prelude: DC vs. Marvel (optional)"
+private const val AM_1996 = "Amalgam, wave 1 (1996)"
+private const val AM_1997 = "Amalgam, wave 2 (1997)"
+
+/** DC and Marvel heroes fused into one universe: all 24 one-shots, in publication order (Wikipedia). */
+val AMALGAM = StarterReadingOrder(
+    key = "amalgam_order_v1",
+    name = "Amalgam Comics",
+    steps = listOf(
+        issues(AM_PRELUDE, "DC Versus Marvel", null, 1, optional = true, note = "The crossover that creates Amalgam"),
+        issues(AM_PRELUDE, "Marvel Versus DC", null, 2, 3, optional = true),
+        issues(AM_PRELUDE, "DC Versus Marvel", null, 4, optional = true),
+    ) + listOf(
+        "Doctor Strangefate" to "Doctor Strange + Doctor Fate",
+        "Super Soldier" to "Superman + Captain America",
+        "X-Patrol" to null,
+        "Bullets and Bracelets" to "Punisher + Wonder Woman",
+        "Spider-Boy" to "Superboy + Spider-Man",
+        "Bruce Wayne: Agent of S.H.I.E.L.D." to null,
+        "Amazon" to "Storm + Wonder Woman",
+        "Legends of the Dark Claw" to "Batman + Wolverine",
+        "Assassins" to "Daredevil + Catwoman",
+        "Magneto and the Magnetic Men" to null,
+        "JLX" to "Justice League + X-Men",
+        "Speed Demon" to "Flash + Ghost Rider",
+    ).map { (title, note) -> oneShot(AM_1996, title, note = note) } + listOf(
+        "Generation Hex", "Super-Soldier: Man of War", "Bat-Thing", "Lobo the Duck", "Spider-Boy Team-Up",
+        "Challengers of the Fantastic", "Exciting X-Patrol", "Dark Claw Adventures", "Thorion of the New Asgods",
+        "Iron Lantern", "Magnetic Men featuring Magneto", "JLX Unleashed",
+    ).map { oneShot(AM_1997, it) },
+)
+
+private const val IW_COUNTDOWN = "Infinity Countdown"
+private const val IW_WARS = "Infinity Wars"
+private const val IW_WARPS = "Infinity Warps"
+private const val INFINITY_WARS = "Infinity Wars"
+private val WARPS = listOf(
+    "Infinity Wars: Soldier Supreme" to "Captain America + Doctor Strange",
+    "Infinity Wars: Arachknight" to "Spider-Man + Moon Knight",
+    "Infinity Wars: Iron Hammer" to "Iron Man + Thor",
+    "Infinity Wars: Weapon Hex" to "X-23 + Scarlet Witch",
+    "Infinity Wars: Ghost Panther" to "Ghost Rider + Black Panther",
+    "Infinity Wars: Infinity Warps" to null,
+)
+
+/**
+ * Gerry Duggan's 2018 Infinity saga: Gamora takes the stones and folds the universe, fusing heroes
+ * into "Infinity Warps". The two-issue Warps minis are interleaved with the main series by release.
+ */
+val INFINITY_WARS_2018 = StarterReadingOrder(
+    key = "infinity_wars_order_v1",
+    name = "Infinity Wars (2018)",
+    steps = buildList {
+        add(oneShot(IW_COUNTDOWN, "Infinity Countdown Prime"))
+        add(issues(IW_COUNTDOWN, IW_COUNTDOWN, 2018, 1, 5))
+        add(oneShot(IW_COUNTDOWN, "Infinity Countdown: Adam Warlock", optional = true))
+        add(oneShot(IW_WARS, "Infinity Wars Prime"))
+        add(issues(IW_WARS, INFINITY_WARS, 2018, 1, 2, note = "Gamora folds the universe"))
+        WARPS.forEach { (title, note) -> add(issues(IW_WARPS, title, null, 1, note = note)) }
+        add(issues(IW_WARS, INFINITY_WARS, 2018, 3, 4))
+        WARPS.forEach { (title, _) -> add(issues(IW_WARPS, title, null, 2)) }
+        add(issues(IW_WARS, INFINITY_WARS, 2018, 5, 6))
+        add(oneShot(IW_WARS, "Infinity Wars: Infinity", optional = true, note = "Epilogue"))
+    },
+)
+
+// --- Alternate histories ---
+
+/** Peter Parker ages in real time from 1962 (Chip Zdarsky & Mark Bagley). */
+val LIFE_STORY = StarterReadingOrder(
+    key = "life_story_order_v1",
+    name = "Spider-Man: Life Story",
+    steps = listOf(
+        issues("Life Story", "Spider-Man: Life Story", null, 1, 6),
+        oneShot("More Life Stories (optional)", "Spider-Man: Life Story Annual", optional = true),
+        issues("More Life Stories (optional)", "Fantastic Four: Life Story", null, 1, 6, optional = true),
+    ),
+)
+
+/**
+ * Alex Ross & Jim Krueger's future Marvel universe. Each book is read whole (BatCave lists the
+ * #0, #½ and #X issues its own way); specials are optional.
+ */
+val EARTH_X = StarterReadingOrder(
+    key = "earth_x_order_v1",
+    name = "Earth X Trilogy",
+    steps = listOf(
+        oneShot("Earth X", "Earth X", note = "Everyone on Earth gains powers"),
+        oneShot("Universe X", "Universe X", note = "Includes #0 and #X"),
+        oneShot("Universe X", "Universe X Special", optional = true),
+        oneShot("Paradise X", "Paradise X", note = "The finale"),
+        issues("Paradise X", "Paradise X: Heralds", null, 1, 3, optional = true),
+        issues("Paradise X", "Paradise X: Ragnarok", null, 1, 2, optional = true),
+    ),
+)

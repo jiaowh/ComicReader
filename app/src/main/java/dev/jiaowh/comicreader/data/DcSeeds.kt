@@ -313,6 +313,9 @@ val ELSEWORLDS = StarterReadingOrder(
 
         issues(EW_CLASSICS, "Kingdom Come", null, 1, 4, note = "Waid & Ross; an aging Superman returns"),
         issues(EW_CLASSICS, "The Kingdom", null, 1, 2, optional = true, note = "Sequel to Kingdom Come"),
+        issues(EW_SETTINGS, "Superman & Batman: Generations", null, 1, 4, note = "The heroes age in real time from 1939"),
+        issues(EW_SETTINGS, "Superman & Batman: Generations II", null, 1, 4),
+        issues(EW_SETTINGS, "Superman & Batman: Generations III", null, 1, 12, optional = true),
         issues(EW_CLASSICS, "JLA: The Nail", null, 1, 3, note = "The Kents never find Kal-El"),
         issues(EW_CLASSICS, "JLA: Another Nail", null, 1, 3),
     ),
@@ -654,5 +657,67 @@ val CRISIS_ON_INFINITE_EARTHS = StarterReadingOrder(
     steps = listOf(
         issues("Crisis on Infinite Earths", "Crisis on Infinite Earths", 1985, 1, 12),
         issues("Aftermath (optional)", "History of the DC Universe", null, 1, 2, optional = true),
+    ),
+)
+
+// --- Forever Evil ---
+
+private const val FE_TRINITY = "Trinity War"
+private const val FE_EVENT = "Forever Evil"
+private const val FE_TIE_INS = "Tie-ins (optional)"
+private const val JLA_2013 = "Justice League of America"
+private const val JLD_2011 = "Justice League Dark"
+private const val PANDORA = "Trinity of Sin: Pandora"
+
+/**
+ * The Crime Syndicate, an evil Justice League from Earth-3, conquers Earth. Trinity War order per
+ * ComicBookTreasury; the Trinity of Sin and Constantine chapters are optional.
+ */
+val FOREVER_EVIL = StarterReadingOrder(
+    key = "forever_evil_order_v1",
+    name = "Trinity War & Forever Evil",
+    steps = listOf(
+        issues(FE_TRINITY, PANDORA, null, 1, optional = true),
+        issues(FE_TRINITY, JL_2011, 2011, 22, note = "Three Justice Leagues collide"),
+        issues(FE_TRINITY, JLA_2013, 2013, 6),
+        issues(FE_TRINITY, JLD_2011, 2011, 22),
+        issues(FE_TRINITY, "Constantine", 2013, 5, optional = true),
+        issues(FE_TRINITY, PANDORA, null, 2, optional = true),
+        issues(FE_TRINITY, "Trinity of Sin: The Phantom Stranger", null, 11, optional = true),
+        issues(FE_TRINITY, JLA_2013, 2013, 7),
+        issues(FE_TRINITY, PANDORA, null, 3, optional = true),
+        issues(FE_TRINITY, JLD_2011, 2011, 23),
+        issues(FE_TRINITY, JL_2011, 2011, 23, note = "The Crime Syndicate arrives"),
+        issues(FE_EVENT, "Forever Evil", 2013, 1, 7, note = "Lex Luthor leads the resistance"),
+        issues(FE_TIE_INS, "Forever Evil: Arkham War", null, 1, 6, optional = true, note = "Batman-side"),
+        issues(FE_TIE_INS, "Forever Evil: Rogues Rebellion", null, 1, 6, optional = true),
+        issues(FE_TIE_INS, "Forever Evil: A.R.G.U.S.", null, 1, 6, optional = true),
+        issues(FE_TIE_INS, JL_2011, 2011, 24, 29, optional = true, note = "Crime Syndicate origins"),
+        issues("Aftermath", JL_2011, 2011, 30, 39, optional = true, note = "Leads into the Darkseid War"),
+    ),
+)
+
+// --- DC vs. Vampires ---
+
+/** The Red Rain idea across the whole DC universe; heroes turned one by one. */
+val DC_VS_VAMPIRES = StarterReadingOrder(
+    key = "dc_vs_vampires_order_v1",
+    name = "DC vs. Vampires",
+    steps = listOf(
+        issues("DC vs. Vampires", "DC vs. Vampires", null, 1, 12, note = "Tom Taylor & Matthew Rosenberg"),
+        issues("Sequels (optional)", "DC vs. Vampires: All-Out War", null, 1, 6, optional = true),
+        issues("Sequels (optional)", "DC vs. Vampires: World War V", null, 1, 12, optional = true),
+    ),
+)
+
+// --- Arkham Asylum ---
+
+/** Morrison & McKean's painted horror Batman. */
+val ARKHAM_ASYLUM = StarterReadingOrder(
+    key = "arkham_asylum_order_v1",
+    name = "Arkham Asylum",
+    steps = listOf(
+        oneShot("Arkham Asylum", "Arkham Asylum: A Serious House on Serious Earth", note = "Grant Morrison & Dave McKean, 1989"),
+        issues("Follow-up (optional)", "Arkham Asylum: Living Hell", null, 1, 6, optional = true),
     ),
 )
